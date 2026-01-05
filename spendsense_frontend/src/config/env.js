@@ -182,6 +182,10 @@ function buildEnv() {
   const REACT_APP_FRONTEND_URL = readEnvUrl("REACT_APP_FRONTEND_URL", "http");
   const REACT_APP_WS_URL = readEnvUrl("REACT_APP_WS_URL", "ws");
 
+  // Optional separate backend URL for analytics-api (can be same origin as backend).
+  const REACT_APP_ANALYTICS_API_URL = readEnvUrl("REACT_APP_ANALYTICS_API_URL", "http");
+  const REACT_APP_ANALYTICS_API_TIMEOUT_MS = readEnvNumber("REACT_APP_ANALYTICS_API_TIMEOUT_MS", undefined);
+
   const REACT_APP_ENABLE_SOURCE_MAPS = readEnvBool("REACT_APP_ENABLE_SOURCE_MAPS", undefined);
   const REACT_APP_TRUST_PROXY = readEnvBool("REACT_APP_TRUST_PROXY", undefined);
 
@@ -205,6 +209,9 @@ function buildEnv() {
     "REACT_APP_HEALTHCHECK_PATH",
     "REACT_APP_FEATURE_FLAGS",
     "REACT_APP_EXPERIMENTS_ENABLED",
+    // Optional analytics vars are intentionally not required.
+    "REACT_APP_ANALYTICS_API_URL",
+    "REACT_APP_ANALYTICS_API_TIMEOUT_MS",
   ];
 
   // Validate presence / correctness. We allow API base to be unset *only* if backend URL exists (fallback).
@@ -241,6 +248,10 @@ function buildEnv() {
     REACT_APP_HEALTHCHECK_PATH,
     REACT_APP_FEATURE_FLAGS,
     REACT_APP_EXPERIMENTS_ENABLED,
+
+    // Analytics backend (optional; falls back to REACT_APP_API_BASE at call time if unset).
+    REACT_APP_ANALYTICS_API_URL,
+    REACT_APP_ANALYTICS_API_TIMEOUT_MS,
   });
 
   // Only log redacted summary at debug/trace.
@@ -250,6 +261,8 @@ function buildEnv() {
       REACT_APP_BACKEND_URL: redactUrl(env.REACT_APP_BACKEND_URL),
       REACT_APP_FRONTEND_URL: redactUrl(env.REACT_APP_FRONTEND_URL),
       REACT_APP_WS_URL: redactUrl(env.REACT_APP_WS_URL),
+      REACT_APP_ANALYTICS_API_URL: redactUrl(env.REACT_APP_ANALYTICS_API_URL),
+      REACT_APP_ANALYTICS_API_TIMEOUT_MS: env.REACT_APP_ANALYTICS_API_TIMEOUT_MS,
       REACT_APP_NODE_ENV: env.REACT_APP_NODE_ENV,
       REACT_APP_ENABLE_SOURCE_MAPS: env.REACT_APP_ENABLE_SOURCE_MAPS,
       REACT_APP_PORT: env.REACT_APP_PORT,

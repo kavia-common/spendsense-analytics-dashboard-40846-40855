@@ -7,6 +7,9 @@ import InlineBanner from "../components/ui/InlineBanner";
 import BaseCurrencySelect from "../components/ui/BaseCurrencySelect";
 import { useCurrency } from "../currency/CurrencyContext";
 import { formatMoney, formatOriginalMoney } from "../lib/money";
+import { analyticsClient } from "../lib/backend/analyticsClient";
+import { isApiError } from "../lib/apiClient";
+import { isFeatureEnabled } from "../lib/featureFlags";
 
 const MOCK_TRANSACTIONS = [
   { id: "t1", date: "2026-01-02", merchant: "Netflix", category: "subscriptions", amount: -15.49, currency: "USD" },
@@ -68,6 +71,18 @@ function applyFilters(transactions, filters) {
     });
 }
 
+/**
+ * @param {any} err
+ * @returns {string}
+ */
+function formatTxError(err) {
+  if (isApiError(err)) {
+    const suffix = err.requestId ? ` (request: ${err.requestId})` : "";
+    return `${err.message}${suffix}`;
+  }
+  return "We couldn't load transactions from the analytics service. Please try again.";
+}
+
 function CategoryPill({ category }) {
   const cls = `ss-pill ss-pill-${category}`;
   const label = category.charAt(0).toUpperCase() + category.slice(1);
@@ -92,25 +107,63 @@ export default function TransactionsPage() {
     category: "all",
   });
 
-  const [state, setState] = useState({ loading: true, data: [] });
+  const [state, setState] = useState({ loading: true, data: [], error: "" });
 
   useEffect(() => {
     let alive = true;
-    setState({ loading: true, data: [] });
 
-    const delay = 900 + Math.round(Math.random() * 300);
-    const t = window.setTimeout(() => {
-      if (!alive) return;
-      // Simulate fetch, then apply client-side filtering.
-      const filtered = applyFilters(MOCK_TRANSACTIONS, filters);
-      setState({ loading: false, data: filtered });
-    }, delay);
+    async function run() {
+      setState({ loading: true, data: [], error: "" });
+
+      const useLive = isFeatureEnabled("analytics_api");
+
+      if (!useLive) {
+        const delay = 900 + Math.round(Math.random() * 300);
+        const t = window.setTimeout(() => {
+          if (!alive) return;
+          // Simulate fetch, then apply client-side filtering.
+          const filtered = applyFilters(MOCK_TRANSACTIONS, filters);
+          setState({ loading: false, data: filtered, error: "" });
+        }, delay);
+
+        return () => window.clearTimeout(t);
+      }
+
+      try {
+        // NOTE: analytics-api doesn't yet define a transactions listing endpoint in this repo context.
+        // To keep this non-breaking and still exercise the client, we fetch a trend series and
+        // project it into a simple "rows" table-like shape. Once backend adds /transactions/list,
+        // replace this with the real endpoint.
+        const points = await analyticsClient.getTrends({ ...filters, baseCurrency });
+
+        const rows = (Array.isArray(points) ? points : []).map((p, idx) => ({
+          id: `p-${idx}`,
+          date: p.date,
+          merchant: "Aggregated spend",
+          category: filters.category === "all" ? "other" : filters.category,
+          amount: p.amount,
+          currency: p.currency,
+        }));
+
+        if (!alive) return;
+        const filtered = applyFilters(rows, filters);
+        setState({ loading: false, data: filtered, error: "" });
+      } catch (e) {
+        if (!alive) return;
+
+        // Fallback to existing mock dataset to keep UX intact if backend isn't ready yet.
+        const filtered = applyFilters(MOCK_TRANSACTIONS, filters);
+        setState({ loading: false, data: filtered, error: formatTxError(e) });
+      }
+    }
+
+    const cleanupPromise = run();
 
     return () => {
       alive = false;
-      window.clearTimeout(t);
+      if (typeof cleanupPromise === "function") cleanupPromise();
     };
-  }, [filters.datePreset, filters.dateFrom, filters.dateTo, filters.search, filters.category]);
+  }, [filters.datePreset, filters.dateFrom, filters.dateTo, filters.search, filters.category, baseCurrency]);
 
   const totalNormalized = useMemo(() => {
     if (!state.data?.length) return 0;
@@ -155,11 +208,19 @@ export default function TransactionsPage() {
         <div className="ss-card-header">
           <h2 className="ss-card-title">Recent transactions</h2>
           <span className="ss-muted" style={{ fontSize: 12 }}>
-            {state.loading ? "Loading" : `${state.data.length} result(s) • Base: ${baseCurrency}`}
+            {state.loading
+              ? "Loading"
+              : `${state.data.length} result(s) • ${isFeatureEnabled("analytics_api") ? "Live (analytics-api)" : "Mock"} • Base: ${baseCurrency}`}
           </span>
         </div>
 
         <div className="ss-card-body">
+          {state.error ? (
+            <div style={{ marginBottom: 10 }}>
+              <InlineBanner tone="warning" title="Analytics service unavailable" message={state.error} />
+            </div>
+          ) : null}
+
           {state.loading ? (
             <LoadingState variant="table" message="Loading transactions…" rows={7} />
           ) : !state.data?.length ? (

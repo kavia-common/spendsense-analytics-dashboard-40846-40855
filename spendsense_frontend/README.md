@@ -64,6 +64,42 @@ Features:
 - Simple middleware hook system:
   - `beforeRequest(req)` / `afterResponse(res, req)` / `onError(err, req)` arrays
 
+## analytics-api typed client
+
+A typed (JSDoc) client for the `analytics-api` backend lives under:
+
+- `src/lib/backend/types.js` (typedefs)
+- `src/lib/backend/analyticsClient.js` (client methods)
+
+### Enable live calls (feature flag)
+
+This integration is **non-breaking**: by default the UI continues using mocked data.
+
+Enable live calls by setting:
+
+- `REACT_APP_FEATURE_FLAGS=analytics_api` (CSV)  
+  or `REACT_APP_FEATURE_FLAGS={"analytics_api":true}` (JSON)
+
+### Environment variables
+
+Optional (recommended when analytics-api is hosted separately):
+
+- `REACT_APP_ANALYTICS_API_URL` (http/https absolute URL)  
+  If unset, the client falls back to `REACT_APP_API_BASE`.
+
+- `REACT_APP_ANALYTICS_API_TIMEOUT_MS` (number; optional)  
+  Overrides the default apiClient timeout for analytics calls.
+
+### CORS note (when analytics-api is a different origin)
+
+If the browser blocks requests, ensure the `analytics-api` backend CORS configuration allows your frontend origin:
+
+- Allow Origin: `REACT_APP_FRONTEND_URL` (e.g., `http://localhost:3000`)
+- Allow Headers: `Authorization`, `Content-Type`
+- Allow Methods: `GET, POST, PUT, PATCH, DELETE, OPTIONS`
+
+The frontend will send `Authorization: Bearer <supabase_access_token>` when a Supabase session exists, but will also work anonymously for public endpoints.
+
 ### Example usage
 
 See `src/lib/exampleApi.js` for ready-to-copy examples.
