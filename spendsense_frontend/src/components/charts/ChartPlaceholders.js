@@ -36,8 +36,21 @@ function mockChartData(filters) {
   return [1, 2, 3];
 }
 
-function useMockLoading(filters) {
+function useMockLoading(filters, refreshTick = 0) {
   const [state, setState] = useState({ loading: true, data: [] });
+
+  // Memoize a stable key to satisfy exhaustive-deps without depending on the full object identity.
+  const filtersKey = useMemo(
+    () =>
+      [
+        filters?.datePreset || "",
+        filters?.dateFrom || "",
+        filters?.dateTo || "",
+        filters?.search || "",
+        filters?.category || "",
+      ].join("|"),
+    [filters]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -53,15 +66,15 @@ function useMockLoading(filters) {
       alive = false;
       window.clearTimeout(t);
     };
-  }, [filters?.datePreset, filters?.dateFrom, filters?.dateTo, filters?.search, filters?.category]);
+  }, [filtersKey, refreshTick, filters]);
 
   return state;
 }
 
 // PUBLIC_INTERFACE
-export function LineChartPlaceholder({ title = "Line Chart", filters }) {
+export function LineChartPlaceholder({ title = "Line Chart", filters, refreshTick = 0 }) {
   /** Placeholder for a line chart with loading + empty states. */
-  const { loading, data } = useMockLoading(filters);
+  const { loading, data } = useMockLoading(filters, refreshTick);
 
   const statusPill = useMemo(() => {
     if (loading) return <span className="ss-muted" style={{ fontSize: 12 }}>Loading</span>;
@@ -92,9 +105,9 @@ export function LineChartPlaceholder({ title = "Line Chart", filters }) {
 }
 
 // PUBLIC_INTERFACE
-export function BarChartPlaceholder({ title = "Bar Chart", filters }) {
+export function BarChartPlaceholder({ title = "Bar Chart", filters, refreshTick = 0 }) {
   /** Placeholder for a bar chart with loading + empty states. */
-  const { loading, data } = useMockLoading(filters);
+  const { loading, data } = useMockLoading(filters, refreshTick);
 
   return (
     <ChartShell
@@ -126,9 +139,9 @@ export function BarChartPlaceholder({ title = "Bar Chart", filters }) {
 }
 
 // PUBLIC_INTERFACE
-export function PieChartPlaceholder({ title = "Pie Chart", filters }) {
+export function PieChartPlaceholder({ title = "Pie Chart", filters, refreshTick = 0 }) {
   /** Placeholder for a pie/donut chart with loading + empty states. */
-  const { loading, data } = useMockLoading(filters);
+  const { loading, data } = useMockLoading(filters, refreshTick);
 
   return (
     <ChartShell

@@ -1,82 +1,58 @@
-# Lightweight React Template for KAVIA
+# SpendSense Frontend (React)
 
-This project provides a minimal React template with a clean, modern UI and minimal dependencies.
+A lightweight React UI for the SpendSense analytics dashboard (Dashboard, Transactions, Insights, Alerts, Settings).
 
-## Features
+## Development
 
-- **Lightweight**: No heavy UI frameworks - uses only vanilla CSS and React
-- **Modern UI**: Clean, responsive design with KAVIA brand styling
-- **Fast**: Minimal dependencies for quick loading times
-- **Simple**: Easy to understand and modify
-
-## Getting Started
-
-In the project directory, you can run:
-
-### `npm start`
-
-Runs the app in development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-### `npm test`
-
-Launches the test runner in interactive watch mode.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-## Customization
-
-### Colors
-
-The main brand colors are defined as CSS variables in `src/App.css`:
-
-```css
-:root {
-  --kavia-orange: #E87A41;
-  --kavia-dark: #1A1A1A;
-  --text-color: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.7);
-  --border-color: rgba(255, 255, 255, 0.1);
-}
+```bash
+npm install
+npm start
 ```
 
-### Components
+## Realtime dashboard updates (Supabase)
 
-This template uses pure HTML/CSS components instead of a UI framework. You can find component styles in `src/App.css`. 
+The Dashboard page can refresh automatically when a new row is inserted into the `public.transactions` table.
 
-Common components include:
-- Buttons (`.btn`, `.btn-large`)
-- Container (`.container`)
-- Navigation (`.navbar`)
-- Typography (`.title`, `.subtitle`, `.description`)
+### 1) Configure Supabase keys
 
-## Learn More
+Set **either** runtime window variables **or** CRA environment variables.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+#### Option A: CRA env vars (recommended)
 
-### Code Splitting
+Add these to your frontend environment:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+- `REACT_APP_SUPABASE_URL`
+- `REACT_APP_SUPABASE_ANON_KEY`
 
-### Analyzing the Bundle Size
+Optional logging control:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+- `REACT_APP_LOG_LEVEL` = `silent` | `info` | `debug` | `trace`
 
-### Making a Progressive Web App
+Notes:
+- Logging for realtime is guarded by `REACT_APP_LOG_LEVEL` (use `debug` to see detailed payloads in the console).
+- The code also supports `window.SUPABASE_URL` / `window.SUPABASE_ANON_KEY` if you inject configuration at runtime.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### 2) Enable Realtime for `public.transactions`
 
-### Advanced Configuration
+In Supabase:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+1. Go to **Database → Replication** (or **Realtime** settings depending on UI).
+2. Ensure **Realtime** is enabled for your project.
+3. Add the `public.transactions` table to the publication used by Realtime (often `supabase_realtime`).
+4. Confirm inserts are broadcast:
+   - event: `INSERT`
+   - schema: `public`
+   - table: `transactions`
 
-### Deployment
+### 3) Verify
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+1. Open the dashboard.
+2. Insert a new transaction row into `public.transactions` (SQL editor, your backend, etc.).
+3. The Dashboard should visibly re-run its mocked "fetch" logic:
+   - KPI card loading state briefly appears again
+   - chart placeholders reload (because `refreshTick` increments)
 
-### `npm run build` fails to minify
+### Troubleshooting
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- If no Supabase keys are configured, the app runs in **no-op realtime mode** (no crash, just no live updates).
+- If you have RLS enabled on `public.transactions`, ensure the user represented by the anon key (or the logged-in user if you later add auth) has permission to receive changes as configured for your project.

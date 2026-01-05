@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "../components/Layout";
 import FiltersBar from "../components/ui/FiltersBar";
 import LoadingState from "../components/ui/LoadingState";
@@ -8,6 +8,7 @@ import {
   LineChartPlaceholder,
   PieChartPlaceholder,
 } from "../components/charts/ChartPlaceholders";
+import { createRealtimeClient } from "../lib/realtime";
 
 const MOCK_KPIS = [
   { key: "total", label: "Total Spend", value: "$2,418.20" },
@@ -19,6 +20,11 @@ function mockFetchKpis(filters) {
   const query = (filters?.search || "").trim().toLowerCase();
   if (query.includes("empty") || query.includes("none")) return [];
   return MOCK_KPIS;
+}
+
+function shouldDebug() {
+  const lvl = (process.env.REACT_APP_LOG_LEVEL || "").trim().toLowerCase();
+  return ["debug", "trace"].includes(lvl);
 }
 
 // PUBLIC_INTERFACE
@@ -34,6 +40,50 @@ export default function DashboardPage() {
 
   const [kpisState, setKpisState] = useState({ loading: true, data: [] });
 
+  // A simple "tick" that forces mocked KPIs/charts to re-run their simulated fetch logic.
+  const [transactionsRefreshTick, setTransactionsRefreshTick] = useState(0);
+
+  // Keep a stable realtime client instance per mount.
+  const realtimeRef = useRef(null);
+
+  useEffect(() => {
+    // Initialize client once.
+    realtimeRef.current = createRealtimeClient();
+
+    // Subscribe to transaction inserts. On insert: trigger a lightweight refresh tick.
+    const ok = realtimeRef.current.subscribeToTransactions((inserted) => {
+      if (shouldDebug()) console.debug("[dashboard] transaction insert received", inserted);
+
+      // For this UI scaffold, we refetch/recompute mocked data.
+      // In a real implementation, we could optimistically merge inserted tx into state.
+      setTransactionsRefreshTick((t) => t + 1);
+    });
+
+    if (shouldDebug()) console.debug("[dashboard] realtime subscription started:", ok);
+
+    return () => {
+      // Cleanup to avoid memory leaks when navigating away.
+      const rt = realtimeRef.current;
+      realtimeRef.current = null;
+      if (rt && typeof rt.unsubscribe === "function") {
+        rt.unsubscribe();
+      }
+      if (shouldDebug()) console.debug("[dashboard] realtime subscription cleaned up");
+    };
+  }, []);
+
+  const filtersKey = useMemo(
+    () =>
+      [
+        filters?.datePreset || "",
+        filters?.dateFrom || "",
+        filters?.dateTo || "",
+        filters?.search || "",
+        filters?.category || "",
+      ].join("|"),
+    [filters]
+  );
+
   useEffect(() => {
     let alive = true;
     setKpisState({ loading: true, data: [] });
@@ -48,7 +98,7 @@ export default function DashboardPage() {
       alive = false;
       window.clearTimeout(t);
     };
-  }, [filters.datePreset, filters.dateFrom, filters.dateTo, filters.search, filters.category]);
+  }, [filtersKey, transactionsRefreshTick, filters]);
 
   const subtitle = useMemo(() => {
     const categoryLabel = filters.category === "all" ? "All categories" : filters.category;
@@ -60,10 +110,7 @@ export default function DashboardPage() {
       <h1 className="ss-page-title">Dashboard</h1>
       <p className="ss-page-subtitle">{subtitle}</p>
 
-      <FiltersBar
-        initialFilters={filters}
-        onChange={(next) => setFilters(next)}
-      />
+      <FiltersBar initialFilters={filters} onChange={(next) => setFilters(next)} />
 
       <div className="ss-grid" style={{ marginBottom: 14 }}>
         <div className="ss-col-12">
@@ -82,9 +129,7 @@ export default function DashboardPage() {
                   title="No KPIs available"
                   message="Try clearing your search or adjusting the date range."
                   actionLabel="Clear filters"
-                  onAction={() =>
-                    setFilters((prev) => ({ ...prev, search: "", category: "all" }))
-                  }
+                  onAction={() => setFilters((prev) => ({ ...prev, search: "", category: "all" }))}
                 />
               ) : (
                 <div className="ss-grid" style={{ gap: 10 }}>
@@ -92,10 +137,25 @@ export default function DashboardPage() {
                     <div key={kpi.key} className="ss-col-12 ss-col-4">
                       <div className="ss-card" style={{ boxShadow: "none" }}>
                         <div className="ss-card-body" style={{ padding: 14 }}>
-                          <div className="ss-muted" style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                          <div
+                            className="ss-muted"
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 900,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                            }}
+                          >
                             {kpi.label}
                           </div>
-                          <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900, letterSpacing: "-0.02em" }}>
+                          <div
+                            style={{
+                              marginTop: 8,
+                              fontSize: 22,
+                              fontWeight: 900,
+                              letterSpacing: "-0.02em",
+                            }}
+                          >
                             {kpi.value}
                           </div>
                         </div>
@@ -111,13 +171,25 @@ export default function DashboardPage() {
 
       <div className="ss-grid">
         <div className="ss-col-12 ss-col-4">
-          <LineChartPlaceholder title="Spending Trend" filters={filters} />
+          <LineChartPlaceholder
+            title="Spending Trend"
+            filters={filters}
+            refreshTick={transactionsRefreshTick}
+          />
         </div>
         <div className="ss-col-12 ss-col-4">
-          <BarChartPlaceholder title="Category Breakdown" filters={filters} />
+          <BarChartPlaceholder
+            title="Category Breakdown"
+            filters={filters}
+            refreshTick={transactionsRefreshTick}
+          />
         </div>
         <div className="ss-col-12 ss-col-4">
-          <PieChartPlaceholder title="Budget Allocation" filters={filters} />
+          <PieChartPlaceholder
+            title="Budget Allocation"
+            filters={filters}
+            refreshTick={transactionsRefreshTick}
+          />
         </div>
       </div>
     </Layout>
