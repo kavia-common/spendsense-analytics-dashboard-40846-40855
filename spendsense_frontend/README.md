@@ -9,6 +9,93 @@ npm install
 npm start
 ```
 
+## Centralized environment config
+
+This frontend provides a centralized environment module at:
+
+- `src/config/env.js` (export: `env`)
+
+It reads CRA environment variables (prefixed with `REACT_APP_`), performs basic validation/type coercion, and exports a **frozen** config object.
+
+### Required env vars (validated)
+
+- `REACT_APP_API_BASE` (optional if `REACT_APP_BACKEND_URL` is set; used as primary base)
+- `REACT_APP_BACKEND_URL` (http/https absolute URL)
+- `REACT_APP_FRONTEND_URL` (http/https absolute URL)
+- `REACT_APP_WS_URL` (ws/wss absolute URL)
+- `REACT_APP_NODE_ENV` (defaults to `development`)
+- `REACT_APP_ENABLE_SOURCE_MAPS` (boolean-ish string)
+- `REACT_APP_PORT` (number-ish string)
+- `REACT_APP_TRUST_PROXY` (boolean-ish string)
+- `REACT_APP_LOG_LEVEL` (defaults to `info`)
+- `REACT_APP_HEALTHCHECK_PATH` (defaults to `/health`)
+- `REACT_APP_FEATURE_FLAGS` (JSON or CSV; defaults to `{}`)
+- `REACT_APP_EXPERIMENTS_ENABLED` (boolean-ish string; defaults to `false`)
+
+Notes:
+- URL fields are checked for basic validity (absolute URLs only).
+- The module will **never log secrets**. It may log a **redacted** summary only when `REACT_APP_LOG_LEVEL` is `debug` or `trace`.
+
+Usage:
+
+```js
+import { env } from "./config/env";
+
+console.log(env.REACT_APP_BACKEND_URL);
+```
+
+## API client wrapper
+
+A fetch-based API client wrapper is available at:
+
+- `src/lib/apiClient.js` (export: `createApiClient(env)`)
+
+Features:
+- Base URL from `env.REACT_APP_API_BASE` (fallback: `env.REACT_APP_BACKEND_URL`)
+- JSON headers by default
+- Optional `Authorization: Bearer <token>` from Supabase session **when Supabase is configured**
+- Timeout via `AbortController` (default `10s`)
+- Retries with exponential backoff + jitter:
+  - `GET`/`HEAD`: retry on `429` and `5xx` + network errors (default `3` attempts)
+  - `POST`/`PUT`/`PATCH`/`DELETE`: retry only on `429` (respects `Retry-After`), to avoid duplicate side effects
+- Structured errors thrown as `ApiError`:
+  - `{ status, code, message, details, requestId, isNetworkError }`
+  - Parses `application/problem+json` when present
+- Simple middleware hook system:
+  - `beforeRequest(req)` / `afterResponse(res, req)` / `onError(err, req)` arrays
+
+### Example usage
+
+See `src/lib/exampleApi.js` for ready-to-copy examples.
+
+```js
+import { env } from "./config/env";
+import { createApiClient, isApiError } from "./lib/apiClient";
+
+const api = createApiClient(env);
+
+async function loadSummary() {
+  try {
+    const data = await api.get("/summary", { query: { period: "30d" } });
+    return data;
+  } catch (err) {
+    if (isApiError(err)) {
+      // structured error
+      console.warn(err.status, err.code, err.requestId, err.message);
+    }
+    throw err;
+  }
+}
+```
+
+## Logging
+
+`src/lib/logger.js` supports levels:
+
+- `silent` | `error` | `warn` | `info` | `debug` | `trace`
+
+Default is `info` if unset/unknown.
+
 ## Exchange rates / Base currency normalization
 
 This UI can normalize displayed monetary values into a **selected base currency** using an external exchange rates API.
@@ -56,7 +143,7 @@ Configure these as CRA env vars:
 
 Optional logging control:
 
-- `REACT_APP_LOG_LEVEL` = `silent` | `info` | `debug` | `trace`
+- `REACT_APP_LOG_LEVEL` = `silent` | `error` | `warn` | `info` | `debug` | `trace`
 
 Notes:
 - The code also supports `window.SUPABASE_URL` / `window.SUPABASE_ANON_KEY` if you inject configuration at runtime.
@@ -103,7 +190,7 @@ Add these to your frontend environment:
 
 Optional logging control:
 
-- `REACT_APP_LOG_LEVEL` = `silent` | `info` | `debug` | `trace`
+- `REACT_APP_LOG_LEVEL` = `silent` | `error` | `warn` | `info` | `debug` | `trace`
 
 Notes:
 - Logging for realtime is guarded by `REACT_APP_LOG_LEVEL` (use `debug` to see detailed payloads in the console).
