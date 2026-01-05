@@ -1,48 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import "./App.css";
+import "./styles/theme.css";
+
+import { AuthProvider } from "./auth/AuthContext";
+import ProtectedRoute from "./routes/ProtectedRoute";
+
+import DashboardPage from "./pages/Dashboard";
+import TransactionsPage from "./pages/Transactions";
+import InsightsPage from "./pages/Insights";
+import AlertsPage from "./pages/Alerts";
+import SettingsPage from "./pages/Settings";
+import LoginPage from "./pages/Login";
 
 // PUBLIC_INTERFACE
 function App() {
-  const [theme, setTheme] = useState('light');
-
-  // Effect to apply theme to document element
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
-  // PUBLIC_INTERFACE
-  const toggleTheme = () => {
-    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
-  };
-
+  /** SpendSense frontend app entry (routing + layout scaffold). */
   return (
-    <div className="App">
-      <header className="App-header">
-        <button 
-          className="theme-toggle" 
-          onClick={toggleTheme}
-          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-        >
-          {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
-        </button>
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <p>
-          Current theme: <strong>{theme}</strong>
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Protected app area */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/transactions" element={<TransactionsPage />} />
+            <Route path="/insights" element={<InsightsPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+
+          {/* Basic fallback */}
+          <Route path="*" element={<DashboardPage />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
