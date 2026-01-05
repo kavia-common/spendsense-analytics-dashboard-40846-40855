@@ -3,17 +3,23 @@ import Layout from "../components/Layout";
 import FiltersBar from "../components/ui/FiltersBar";
 import LoadingState from "../components/ui/LoadingState";
 import EmptyState from "../components/ui/EmptyState";
+import InlineBanner from "../components/ui/InlineBanner";
+import BaseCurrencySelect from "../components/ui/BaseCurrencySelect";
 import {
   BarChartPlaceholder,
   LineChartPlaceholder,
   PieChartPlaceholder,
 } from "../components/charts/ChartPlaceholders";
 import { createRealtimeClient } from "../lib/realtime";
+import { useCurrency } from "../currency/CurrencyContext";
+import { formatMoney, formatOriginalMoney } from "../lib/money";
 
 const MOCK_KPIS = [
-  { key: "total", label: "Total Spend", value: "$2,418.20" },
-  { key: "avg", label: "Avg / Day", value: "$80.61" },
-  { key: "subs", label: "Subscriptions", value: "$129.99" },
+  // Mock KPIs are modeled as if they could arrive in various currencies.
+  // The UI will normalize to the user-selected base currency.
+  { key: "total", label: "Total Spend", amount: 2418.2, currency: "USD" },
+  { key: "avg", label: "Avg / Day", amount: 80.61, currency: "USD" },
+  { key: "subs", label: "Subscriptions", amount: 129.99, currency: "USD" },
 ];
 
 function mockFetchKpis(filters) {
@@ -30,6 +36,8 @@ function shouldDebug() {
 // PUBLIC_INTERFACE
 export default function DashboardPage() {
   /** Dashboard overview page with filters + loading/empty state demos. */
+  const { baseCurrency, convert, fxMeta } = useCurrency();
+
   const [filters, setFilters] = useState({
     datePreset: "30d",
     dateFrom: "",
@@ -110,7 +118,31 @@ export default function DashboardPage() {
       <h1 className="ss-page-title">Dashboard</h1>
       <p className="ss-page-subtitle">{subtitle}</p>
 
-      <FiltersBar initialFilters={filters} onChange={(next) => setFilters(next)} />
+      <FiltersBar initialFilters={filters} onChange={(next) => setFilters(next)}>
+        <BaseCurrencySelect />
+      </FiltersBar>
+
+      {!fxMeta?.hasRates ? (
+        <div style={{ marginBottom: 14 }}>
+          <InlineBanner
+            tone={fxMeta?.lastErrorAt ? "warning" : "info"}
+            title="Currency conversion running in passthrough mode"
+            message={
+              process.env.REACT_APP_EXCHANGE_RATES_API_URL
+                ? "Exchange rates are unavailable right now. Showing original amounts until rates are fetched."
+                : "No exchange rates API is configured. Set REACT_APP_EXCHANGE_RATES_API_URL to enable conversion."
+            }
+          />
+        </div>
+      ) : fxMeta?.lastErrorAt ? (
+        <div style={{ marginBottom: 14 }}>
+          <InlineBanner
+            tone="warning"
+            title="Exchange rates temporarily unavailable"
+            message="Using last known rates. Amounts may be slightly outdated."
+          />
+        </div>
+      ) : null}
 
       <div className="ss-grid" style={{ marginBottom: 14 }}>
         <div className="ss-col-12">
@@ -118,7 +150,7 @@ export default function DashboardPage() {
             <div className="ss-card-header">
               <h2 className="ss-card-title">Key metrics</h2>
               <span className="ss-muted" style={{ fontSize: 12 }}>
-                Mock data
+                Mock data • Base: {baseCurrency}
               </span>
             </div>
             <div className="ss-card-body">
@@ -133,35 +165,49 @@ export default function DashboardPage() {
                 />
               ) : (
                 <div className="ss-grid" style={{ gap: 10 }}>
-                  {kpisState.data.map((kpi) => (
-                    <div key={kpi.key} className="ss-col-12 ss-col-4">
-                      <div className="ss-card" style={{ boxShadow: "none" }}>
-                        <div className="ss-card-body" style={{ padding: 14 }}>
-                          <div
-                            className="ss-muted"
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 900,
-                              letterSpacing: "0.06em",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            {kpi.label}
-                          </div>
-                          <div
-                            style={{
-                              marginTop: 8,
-                              fontSize: 22,
-                              fontWeight: 900,
-                              letterSpacing: "-0.02em",
-                            }}
-                          >
-                            {kpi.value}
+                  {kpisState.data.map((kpi) => {
+                    const normalized = convert(kpi.amount, kpi.currency);
+                    const primary = formatMoney(normalized, baseCurrency);
+                    const secondary = formatOriginalMoney(kpi.amount, kpi.currency);
+
+                    return (
+                      <div key={kpi.key} className="ss-col-12 ss-col-4">
+                        <div className="ss-card" style={{ boxShadow: "none" }}>
+                          <div className="ss-card-body" style={{ padding: 14 }}>
+                            <div
+                              className="ss-muted"
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 900,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              {kpi.label}
+                            </div>
+
+                            <div
+                              title={`Original: ${secondary}`}
+                              style={{
+                                marginTop: 8,
+                                fontSize: 22,
+                                fontWeight: 900,
+                                letterSpacing: "-0.02em",
+                              }}
+                            >
+                              {primary}
+                            </div>
+
+                            {kpi.currency !== baseCurrency ? (
+                              <div className="ss-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                                {secondary}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

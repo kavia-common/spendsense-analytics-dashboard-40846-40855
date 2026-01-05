@@ -9,6 +9,40 @@ npm install
 npm start
 ```
 
+## Exchange rates / Base currency normalization
+
+This UI can normalize displayed monetary values into a **selected base currency** using an external exchange rates API.
+
+### Environment variables
+
+Configure these as CRA env vars:
+
+- `REACT_APP_BASE_CURRENCY` (optional, default: `USD`)
+- `REACT_APP_EXCHANGE_RATES_API_URL` (optional)
+- `REACT_APP_EXCHANGE_RATES_API_KEY` (optional; only if your provider requires it)
+
+Behavior:
+- If exchange rate configuration is missing or the provider is unreachable, the app shows a **small inline warning** and falls back to **passthrough mode** (no conversion).
+- The latest known rates are cached **in-memory for 12 hours** (per base currency) and refreshed in the background.
+
+### Provider examples
+
+**No-key provider (default-compatible):**
+
+```bash
+REACT_APP_EXCHANGE_RATES_API_URL=https://api.exchangerate.host/latest
+REACT_APP_BASE_CURRENCY=USD
+```
+
+**Keyed provider (example only):**
+(Some providers accept Bearer auth; check your provider docs.)
+
+```bash
+REACT_APP_EXCHANGE_RATES_API_URL=https://YOUR_PROVIDER.example.com/latest
+REACT_APP_EXCHANGE_RATES_API_KEY=YOUR_API_KEY
+REACT_APP_BASE_CURRENCY=USD
+```
+
 ## Authentication (Google OAuth via Supabase)
 
 This app uses **Supabase Auth** with the **Google** provider.

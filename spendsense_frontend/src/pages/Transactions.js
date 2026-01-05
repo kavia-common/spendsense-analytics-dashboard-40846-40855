@@ -3,21 +3,19 @@ import Layout from "../components/Layout";
 import FiltersBar from "../components/ui/FiltersBar";
 import LoadingState from "../components/ui/LoadingState";
 import EmptyState from "../components/ui/EmptyState";
+import InlineBanner from "../components/ui/InlineBanner";
+import BaseCurrencySelect from "../components/ui/BaseCurrencySelect";
+import { useCurrency } from "../currency/CurrencyContext";
+import { formatMoney, formatOriginalMoney } from "../lib/money";
 
 const MOCK_TRANSACTIONS = [
-  { id: "t1", date: "2026-01-02", merchant: "Netflix", category: "subscriptions", amount: -15.49 },
-  { id: "t2", date: "2026-01-01", merchant: "Delta Airlines", category: "travel", amount: -420.0 },
-  { id: "t3", date: "2025-12-30", merchant: "Local Cafe", category: "dining", amount: -12.75 },
-  { id: "t4", date: "2025-12-29", merchant: "Electric Utility", category: "utilities", amount: -86.21 },
-  { id: "t5", date: "2025-12-27", merchant: "Spotify", category: "subscriptions", amount: -11.99 },
-  { id: "t6", date: "2025-12-25", merchant: "Grocery Market", category: "other", amount: -64.33 },
+  { id: "t1", date: "2026-01-02", merchant: "Netflix", category: "subscriptions", amount: -15.49, currency: "USD" },
+  { id: "t2", date: "2026-01-01", merchant: "Delta Airlines", category: "travel", amount: -420.0, currency: "USD" },
+  { id: "t3", date: "2025-12-30", merchant: "Local Cafe", category: "dining", amount: -12.75, currency: "EUR" },
+  { id: "t4", date: "2025-12-29", merchant: "Electric Utility", category: "utilities", amount: -86.21, currency: "GBP" },
+  { id: "t5", date: "2025-12-27", merchant: "Spotify", category: "subscriptions", amount: -11.99, currency: "USD" },
+  { id: "t6", date: "2025-12-25", merchant: "Grocery Market", category: "other", amount: -64.33, currency: "CAD" },
 ];
-
-function formatMoney(n) {
-  const sign = n < 0 ? "-" : "";
-  const abs = Math.abs(n);
-  return `${sign}$${abs.toFixed(2)}`;
-}
 
 function computePresetRange(preset) {
   const today = new Date();
@@ -84,6 +82,8 @@ function CategoryPill({ category }) {
 // PUBLIC_INTERFACE
 export default function TransactionsPage() {
   /** Transactions page with filters + loading/empty states (mock data). */
+  const { baseCurrency, convert, fxMeta } = useCurrency();
+
   const [filters, setFilters] = useState({
     datePreset: "30d",
     dateFrom: "",
@@ -112,25 +112,50 @@ export default function TransactionsPage() {
     };
   }, [filters.datePreset, filters.dateFrom, filters.dateTo, filters.search, filters.category]);
 
-  const total = useMemo(() => {
+  const totalNormalized = useMemo(() => {
     if (!state.data?.length) return 0;
-    return state.data.reduce((acc, t) => acc + t.amount, 0);
-  }, [state.data]);
+    return state.data.reduce((acc, t) => acc + convert(t.amount, t.currency), 0);
+  }, [state.data, convert]);
 
   return (
     <Layout>
       <h1 className="ss-page-title">Transactions</h1>
       <p className="ss-page-subtitle">
-        Browse and search your activity • Total shown: <strong>{formatMoney(total)}</strong>
+        Browse and search your activity • Total shown:{" "}
+        <strong>{formatMoney(totalNormalized, baseCurrency)}</strong>
       </p>
 
-      <FiltersBar initialFilters={filters} onChange={(next) => setFilters(next)} />
+      <FiltersBar initialFilters={filters} onChange={(next) => setFilters(next)}>
+        <BaseCurrencySelect />
+      </FiltersBar>
+
+      {!fxMeta?.hasRates ? (
+        <div style={{ marginBottom: 14 }}>
+          <InlineBanner
+            tone={fxMeta?.lastErrorAt ? "warning" : "info"}
+            title="Currency conversion running in passthrough mode"
+            message={
+              process.env.REACT_APP_EXCHANGE_RATES_API_URL
+                ? "Exchange rates are unavailable right now. Showing original amounts until rates are fetched."
+                : "No exchange rates API is configured. Set REACT_APP_EXCHANGE_RATES_API_URL to enable conversion."
+            }
+          />
+        </div>
+      ) : fxMeta?.lastErrorAt ? (
+        <div style={{ marginBottom: 14 }}>
+          <InlineBanner
+            tone="warning"
+            title="Exchange rates temporarily unavailable"
+            message="Using last known rates. Amounts may be slightly outdated."
+          />
+        </div>
+      ) : null}
 
       <div className="ss-card" aria-label="Transactions table">
         <div className="ss-card-header">
           <h2 className="ss-card-title">Recent transactions</h2>
           <span className="ss-muted" style={{ fontSize: 12 }}>
-            {state.loading ? "Loading" : `${state.data.length} result(s)`}
+            {state.loading ? "Loading" : `${state.data.length} result(s) • Base: ${baseCurrency}`}
           </span>
         </div>
 
@@ -156,18 +181,38 @@ export default function TransactionsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.data.map((t) => (
-                    <tr key={t.id}>
-                      <td>{t.date}</td>
-                      <td style={{ fontWeight: 800, color: "var(--ss-text)" }}>{t.merchant}</td>
-                      <td>
-                        <CategoryPill category={t.category} />
-                      </td>
-                      <td style={{ fontWeight: 900, color: t.amount < 0 ? "var(--ss-text)" : "var(--ss-success)" }}>
-                        {formatMoney(t.amount)}
-                      </td>
-                    </tr>
-                  ))}
+                  {state.data.map((t) => {
+                    const normalized = convert(t.amount, t.currency);
+                    const primary = formatMoney(normalized, baseCurrency);
+                    const original = formatOriginalMoney(t.amount, t.currency);
+                    const showSecondary = t.currency !== baseCurrency;
+
+                    return (
+                      <tr key={t.id}>
+                        <td>{t.date}</td>
+                        <td style={{ fontWeight: 800, color: "var(--ss-text)" }}>{t.merchant}</td>
+                        <td>
+                          <CategoryPill category={t.category} />
+                        </td>
+                        <td
+                          style={{
+                            fontWeight: 900,
+                            color: normalized < 0 ? "var(--ss-text)" : "var(--ss-success)",
+                          }}
+                          title={showSecondary ? `Original: ${original}` : undefined}
+                        >
+                          <div style={{ display: "grid", gap: 2 }}>
+                            <div>{primary}</div>
+                            {showSecondary ? (
+                              <div className="ss-muted" style={{ fontSize: 12 }}>
+                                {original}
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
