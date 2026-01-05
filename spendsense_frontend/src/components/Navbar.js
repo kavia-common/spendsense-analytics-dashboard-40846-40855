@@ -61,8 +61,8 @@ export default function Navbar() {
               </span>
               <input
                 type="search"
-                placeholder="Search (placeholder)…"
-                aria-label="Search (placeholder)"
+                placeholder="Search…"
+                aria-label="Search"
                 onChange={() => {
                   // TODO: Wire up theme-aware global search.
                 }}
@@ -122,8 +122,8 @@ export default function Navbar() {
                   </span>
                   <input
                     type="search"
-                    placeholder="Search (placeholder)…"
-                    aria-label="Search (placeholder)"
+                    placeholder="Search…"
+                    aria-label="Search"
                     onChange={() => {
                       // TODO: Wire up theme-aware global search.
                     }}

@@ -1,6 +1,8 @@
-/* Existing template variables kept for compatibility; SpendSense theme tokens live in styles/theme.css */
+/* Keep minimal global styles here; SpendSense theme tokens + component styles live in styles/theme.css.
+   This file preserves template compatibility and avoids fighting the theme layer. */
+
 :root {
-  /* Light theme colors */
+  /* Template compatibility variables (not used by SpendSense UI directly). */
   --bg-primary: #ffffff;
   --bg-secondary: #f8f9fa;
   --text-primary: #282c34;
@@ -11,7 +13,6 @@
 }
 
 [data-theme="dark"] {
-  /* Dark theme colors */
   --bg-primary: #1a1a1a;
   --bg-secondary: #282c34;
   --text-primary: #ffffff;
@@ -21,10 +22,6 @@
   --button-text: #ffffff;
 }
 
-/* App wrapper: keep minimal to avoid fighting the new layout */
 .App {
   min-height: 100vh;
 }
-
-/* Legacy template styles intentionally removed from use.
-   TODO: Remove completely once no longer needed. */
