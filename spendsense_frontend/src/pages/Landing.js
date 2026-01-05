@@ -48,15 +48,8 @@ export default function LandingPage() {
                 type="button"
                 className="ss-btn ss-btn-primary"
                 onClick={() => {
-                  // We pass state through OAuth so callback can redirect to original destination.
-                  // NOTE: Supabase expects a string; we'll use a minimal URL-safe encoding.
-                  const state = encodeURIComponent(
-                    JSON.stringify({
-                      returnTo,
-                      ts: Date.now(),
-                    })
-                  );
-                  signInWithGoogle({ state });
+                  // AuthContext persists returnTo across OAuth redirects and chooses an environment-aware callback URL.
+                  signInWithGoogle({ returnTo });
                 }}
               >
                 Continue with Google

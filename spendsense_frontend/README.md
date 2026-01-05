@@ -185,18 +185,51 @@ Notes:
 - The code also supports `window.SUPABASE_URL` / `window.SUPABASE_ANON_KEY` if you inject configuration at runtime.
 - Do not hardcode secrets in the repository.
 
-### 2) Enable Google provider in Supabase
+### 2) Redirect flow (important)
+
+**Expected redirect chain:**
+
+Google → Supabase → **`/auth/callback`** (this React app) → intended protected route
+
+**How `redirectTo` is chosen:**
+
+- The app calls `supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } })`
+- `redirectTo` is computed as:
+
+`redirectTo = ${REACT_APP_FRONTEND_URL}/auth/callback`
+
+Why: in preview/proxied environments `window.location.origin` may not match the public URL, so we use the explicit `REACT_APP_FRONTEND_URL`.
+
+### 3) Enable Google provider in Supabase
 
 In your Supabase project:
 
 1. Go to **Authentication → Providers → Google**.
 2. Enable Google.
 3. Add your Google OAuth client ID/secret in Supabase.
-4. Add redirect URLs:
+4. Add redirect URLs (both local + preview/prod):
    - Local dev: `http://localhost:3000/auth/callback`
-   - Deployed: `https://YOUR_DOMAIN/auth/callback`
+   - Preview/prod: `https://YOUR_DOMAIN/auth/callback`
 
-### 3) App routing behavior
+Also ensure:
+- **Authentication → URL Configuration → Site URL** is set to your primary deployed URL (or your preview URL if you’re testing in preview).
+
+### 4) Minimal verification checklist (local + preview)
+
+1. Start app and open `/` (Landing page).
+2. Click **Continue with Google**.
+3. Confirm you are redirected through Google and Supabase back to:
+   - `http://localhost:3000/auth/callback` (local) OR
+   - `https://YOUR_DOMAIN/auth/callback` (preview/prod)
+4. Confirm the app navigates to the intended route (usually `/dashboard`), and protected pages load.
+
+Troubleshooting:
+- If you land on `/auth/callback` and get redirected back to `/` without a session:
+  - verify Supabase allowed redirect URLs contain the exact callback URL
+  - verify `REACT_APP_FRONTEND_URL` matches the actual public origin in that environment
+  - set `REACT_APP_LOG_LEVEL=debug` to see detailed auth flow logs
+
+### 5) App routing behavior
 
 - Public (no auth): `/` (Landing page with “Continue with Google”)
 - OAuth callback: `/auth/callback`
